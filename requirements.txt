@@ -1,0 +1,11 @@
+streamlit
+pandas
+requests
+plotly
+yfinance
+streamlit-echarts
+openai
+langchain
+langchain-openai
+langgraph
+tabulate
