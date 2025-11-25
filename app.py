@@ -89,8 +89,8 @@ def load_sentiment_data():
     """Tab 5: 市场情绪数据"""
     monitor = MarketSentimentMonitor()
     fng = monitor.get_fear_and_greed()
-    df_deriv = monitor.get_all_data() # <--- 改这里，调用 get_all_data
-    return fng, df_deriv
+    df_deriv, is_fallback = monitor.get_all_data() # 接收两个返回值
+    return fng, df_deriv, is_fallback
 
 
 # --- Tabs ---
@@ -349,16 +349,21 @@ with tab4:
         
         
 # ==============================================================================
-# Tab 5: 市场情绪与合约 (Dual CEX - High Contrast UI)
+# Tab 5: 市场情绪与合约 (Ultimate Edition)
 # ==============================================================================
 with tab5:
     st.subheader("⚔️ 主力 vs 散户：Binance & Bybit 双重验证")
     
     with st.spinner('正在同步两大交易所数据...'):
-        fng_data, df_deriv = load_sentiment_data()
+        # 接收三个返回值 (适配云端部署)
+        fng_data, df_deriv, is_fallback = load_sentiment_data()
+
+    # --- 0. 云端 IP 限制警告 (新增) ---
+    if is_fallback:
+        st.warning("⚠️ **检测到云端 IP 限制**：Binance/Bybit 数据无法访问，已切换至 CoinGecko 基础行情。\n\n"
+                   "👉 **如需查看实时多空比与费率 Alpha，请在本地电脑运行此程序 (开启 VPN)。**")
 
     # --- 1. 顶部：贪婪指数 (ECharts 3D 动态版) ---
-    # 调整比例为 1.5 : 2.5，给仪表盘留出更多展示空间，防止压缩
     col_fng, col_info = st.columns([1.5, 2.5]) 
     
     with col_fng:
@@ -376,72 +381,34 @@ with tab5:
                         "min": 0,
                         "max": 100,
                         "splitNumber": 10,
-                        "radius": "110%", # 稍微放大撑满
-                        "center": ["50%", "75%"], # 下移圆心，适配半圆布局
-                        
-                        # 霓虹光环轴线
+                        "radius": "110%",
+                        "center": ["50%", "75%"],
                         "axisLine": {
                             "lineStyle": {
                                 "width": 15,
-                                "color": [
-                                    [0.25, "#FF4B4B"], # 极度恐慌
-                                    [0.5, "#FFAA00"],  # 恐慌
-                                    [0.75, "#FCD535"], # 贪婪
-                                    [1, "#00FFAA"]     # 极度贪婪
-                                ],
-                                "shadowBlur": 10,
-                                "shadowColor": "rgba(0, 0, 0, 0.5)"
+                                "color": [[0.25, "#FF4B4B"], [0.5, "#FFAA00"], [0.75, "#FCD535"], [1, "#00FFAA"]],
+                                "shadowBlur": 10, "shadowColor": "rgba(0, 0, 0, 0.5)"
                             }
                         },
-                        
-                        # 3D 质感指针
                         "pointer": {
                             "icon": "path://M12.8,0.7l12,40.1H0.7L12.8,0.7z",
-                            "length": "60%",
-                            "width": 6,
-                            "offsetCenter": [0, "-10%"],
-                            "itemStyle": {
-                                "color": "auto",
-                                "shadowBlur": 5,
-                                "shadowColor": "#fff"
-                            }
+                            "length": "60%", "width": 6, "offsetCenter": [0, "-10%"],
+                            "itemStyle": {"color": "auto", "shadowBlur": 5, "shadowColor": "#fff"}
                         },
-                        
-                        # 刻度与标签
                         "axisTick": {"length": 5, "lineStyle": {"color": "auto", "width": 1}},
                         "splitLine": {"length": 10, "lineStyle": {"color": "auto", "width": 2}},
-                        "axisLabel": {
-                            "color": "#999", 
-                            "fontSize": 10, 
-                            "distance": -45, 
-                            "formatter": "{value}"
-                        },
-                        
-                        # 中间大数字
+                        "axisLabel": {"color": "#999", "fontSize": 10, "distance": -45, "formatter": "{value}"},
                         "detail": {
-                            "fontSize": 40,
-                            "offsetCenter": [0, "-10%"],
-                            "valueAnimation": True,
-                            "formatter": "{value}",
-                            "color": "white",
-                            "fontWeight": "bold"
+                            "fontSize": 40, "offsetCenter": [0, "-10%"], "valueAnimation": True,
+                            "formatter": "{value}", "color": "white", "fontWeight": "bold"
                         },
-                        
-                        # 状态文字 (如 Extreme Fear)
-                        "title": {
-                            "offsetCenter": [0, "25%"],
-                            "fontSize": 18,
-                            "color": "#ccc"
-                        },
+                        "title": {"offsetCenter": [0, "25%"], "fontSize": 18, "color": "#ccc"},
                         "data": [{"value": val, "name": status}]
                     }
                 ]
             }
-            
-            # 渲染 ECharts，高度设为 220px 足够显示半圆
             st_echarts(options=option, height="220px", key="fng_gauge_3d")
             st.caption(f"🕒 更新: {fng_data['update_time']}")
-
         else:
             st.warning("无法获取贪婪指数")
     
@@ -454,77 +421,63 @@ with tab5:
     st.divider()
 
     if not df_deriv.empty:
-        # --- 2. 可视化对比 (High Contrast Colors) ---
-        st.subheader("📊 核心指标对比")
-        
-        # 定义高对比度配色方案
-        COLOR_BINANCE = '#FCD535' # 鲜艳的币安黄
-        COLOR_BYBIT = '#00D4FF'   # 电光蓝 (在黑底上非常清晰)
-        
-        chart_c1, chart_c2 = st.columns(2)
-        
-        # 左图：多空比对比
-        with chart_c1:
-            ls_melt = df_deriv.melt(id_vars='Symbol', value_vars=['Binance LS', 'Bybit LS'], var_name='Exchange', value_name='Ratio')
+        # --- 2. 可视化对比 (仅在非降级模式下显示图表) ---
+        if not is_fallback:
+            st.subheader("📊 核心指标对比")
             
-            fig_ls = px.bar(
-                ls_melt, x='Symbol', y='Ratio', color='Exchange', barmode='group',
-                title='多空比 (L/S Ratio) 对比',
-                # 🎨 配色修改点
-                color_discrete_map={'Binance LS': COLOR_BINANCE, 'Bybit LS': COLOR_BYBIT}, 
-                height=350
-            )
-            # 警戒线
-            fig_ls.add_hline(y=2.5, line_dash="dash", line_color="#FF4B4B", annotation_text="Danger Zone")
+            # 高对比度配色
+            COLOR_BINANCE = '#FCD535' 
+            COLOR_BYBIT = '#00D4FF'
             
-            # 优化深色模式体验
-            fig_ls.update_layout(
-                legend=dict(orientation="h", y=1.1, x=0),
-                xaxis_title=None,
-                yaxis_title="Long/Short Ratio",
-                plot_bgcolor='rgba(255,255,255,0.05)' # 轻微的背景高亮
-            )
-            st.plotly_chart(fig_ls, use_container_width=True)
+            chart_c1, chart_c2 = st.columns(2)
+            
+            with chart_c1:
+                ls_melt = df_deriv.melt(id_vars='Symbol', value_vars=['Binance LS', 'Bybit LS'], var_name='Exchange', value_name='Ratio')
+                fig_ls = px.bar(
+                    ls_melt, x='Symbol', y='Ratio', color='Exchange', barmode='group',
+                    title='多空比 (L/S Ratio) 对比',
+                    color_discrete_map={'Binance LS': COLOR_BINANCE, 'Bybit LS': COLOR_BYBIT}, 
+                    height=350
+                )
+                fig_ls.add_hline(y=2.5, line_dash="dash", line_color="#FF4B4B", annotation_text="Danger Zone")
+                fig_ls.update_layout(legend=dict(orientation="h", y=1.1, x=0), xaxis_title=None, plot_bgcolor='rgba(255,255,255,0.05)')
+                st.plotly_chart(fig_ls, use_container_width=True)
 
-        # 右图：资金费率对比
-        with chart_c2:
-            fr_melt = df_deriv.melt(id_vars='Symbol', value_vars=['Binance Funding', 'Bybit Funding'], var_name='Exchange', value_name='Rate')
-            
-            fig_fr = px.bar(
-                fr_melt, x='Symbol', y='Rate', color='Exchange', barmode='group',
-                title='资金费率 (Funding Rate %) 对比',
-                # 🎨 配色修改点
-                color_discrete_map={'Binance Funding': COLOR_BINANCE, 'Bybit Funding': COLOR_BYBIT},
-                height=350
-            )
-            fig_fr.update_layout(
-                legend=dict(orientation="h", y=1.1, x=0),
-                xaxis_title=None,
-                yaxis_title="Rate (%)",
-                plot_bgcolor='rgba(255,255,255,0.05)'
-            )
-            st.plotly_chart(fig_fr, use_container_width=True)
+            with chart_c2:
+                fr_melt = df_deriv.melt(id_vars='Symbol', value_vars=['Binance Funding', 'Bybit Funding'], var_name='Exchange', value_name='Rate')
+                fig_fr = px.bar(
+                    fr_melt, x='Symbol', y='Rate', color='Exchange', barmode='group',
+                    title='资金费率 (Funding Rate %) 对比',
+                    color_discrete_map={'Binance Funding': COLOR_BINANCE, 'Bybit Funding': COLOR_BYBIT},
+                    height=350
+                )
+                fig_fr.update_layout(legend=dict(orientation="h", y=1.1, x=0), xaxis_title=None, plot_bgcolor='rgba(255,255,255,0.05)')
+                st.plotly_chart(fig_fr, use_container_width=True)
 
         # --- 3. 详细数据表格 ---
         st.subheader("📋 详细监控面板")
-        st.dataframe(
-            df_deriv,
-            column_config={
+        
+        # 动态调整列配置 (降级模式下不显示多空比进度条)
+        if is_fallback:
+             column_config_settings = {
                 "Symbol": "资产",
                 "Price": st.column_config.NumberColumn("价格 ($)", format="$%.2f"),
-                
-                # Binance 列
+                "Note": "状态备注"
+             }
+        else:
+             column_config_settings = {
+                "Symbol": "资产",
+                "Price": st.column_config.NumberColumn("价格 ($)", format="$%.2f"),
                 "Binance Funding": st.column_config.NumberColumn("Binance 费率", format="%.4f%%"),
-                "Binance LS": st.column_config.ProgressColumn(
-                    "Binance 多空比", min_value=0, max_value=5, format="%.2f"
-                ),
-                
-                # Bybit 列
+                "Binance LS": st.column_config.ProgressColumn("Binance 多空比", min_value=0, max_value=5, format="%.2f"),
                 "Bybit Funding": st.column_config.NumberColumn("Bybit 费率", format="%.4f%%"),
-                "Bybit LS": st.column_config.ProgressColumn(
-                    "Bybit 多空比", min_value=0, max_value=5, format="%.2f"
-                ),
-            },
+                "Bybit LS": st.column_config.ProgressColumn("Bybit 多空比", min_value=0, max_value=5, format="%.2f"),
+                "Note": "状态"
+            }
+
+        st.dataframe(
+            df_deriv,
+            column_config=column_config_settings,
             hide_index=True,
             use_container_width=True
         )
@@ -532,40 +485,28 @@ with tab5:
     else:
         st.error("数据加载失败，请检查网络连接。")
             
-            
     st.markdown("---")
     st.subheader("🤖 AI 量化决策大脑 (Powered by LangGraph)")
 
-    # 获取 API Key (建议: 实际部署时最好用 st.secrets)
-    # 这里为了演示方便，放侧边栏或者直接输入
     with st.expander("🔑 设置 OpenAI API Key (点击展开)", expanded=False):
         api_key = st.text_input("输入 sk-开头的 Key", type="password", key="openai_key")
         st.caption("提示: 你的 Key 仅用于当前会话，不会被保存。")
 
-    # 分析按钮
     if st.button("🧠 启动 AI 分析 (Generate Alpha)", type="primary"):
         if not api_key:
             st.warning("请先输入 OpenAI API Key！")
         elif df_deriv.empty:
-            st.error("没有数据可供分析，请先检查网络连接。")
+            st.error("没有数据可供分析。")
         else:
             agent = CryptoQuantAgent(api_key)
-            
-            # 创建一个占位符用于流式显示(模拟)或等待提示
             status_box = st.status("🤖 AI 正在读取链上数据...", expanded=True)
-            
             try:
                 status_box.write("🔍 正在对比 Binance vs Bybit 数据背离...")
-                # 运行 LangGraph
                 analysis_text = agent.run_analysis(df_deriv, fng_data)
-                
                 status_box.write("✅ 分析完成！")
                 status_box.update(label="分析完成", state="complete", expanded=False)
-                
-                # 显示结果
                 st.markdown("### 📝 机构级投资备忘录")
                 st.markdown(analysis_text)
-                
             except Exception as e:
                 status_box.update(label="分析失败", state="error")
                 st.error(f"AI 运行出错: {e}")
