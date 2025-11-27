@@ -57,14 +57,17 @@ def load_usdt_btc_chart_data():
     
     # 1. 获取 USDT 历史市值
     monitor = StablecoinSupplyMonitor()
-    df_usdt = monitor.get_asset_history('USDT') # 调用我们在 monitor 里新加的方法
+    df_usdt = monitor.get_asset_history('USDT') 
     
     # 2. 获取 BTC 历史价格 (使用 yfinance)
     btc = yf.Ticker("BTC-USD")
-    # 获取最近 90 天 (和 USDT 数据长度匹配)
-    df_btc = btc.history(period="90d").reset_index()
+    
+    # 🔥 核心修改点：将 period 改为 "6mo" (6个月)，确保和 USDT 长度一致
+    df_btc = btc.history(period="6mo").reset_index()
+    
     # 统一时区问题 (去除时区信息以便合并)
-    df_btc['Date'] = df_btc['Date'].dt.tz_localize(None)
+    if not df_btc.empty and 'Date' in df_btc.columns:
+        df_btc['Date'] = df_btc['Date'].dt.tz_localize(None)
     
     return df_usdt, df_btc
 
