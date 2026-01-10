@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+cookies.json
+record.csv
+reddit_data.json
+*.png
+venv/
+.env
