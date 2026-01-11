@@ -24,3 +24,6 @@ emoji==0.6.0
 feedparser
 ccxt
 websockets
+scikit-learn
+PyGithub
+beautifulsoup4
