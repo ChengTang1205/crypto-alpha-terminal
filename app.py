@@ -1187,7 +1187,11 @@ with tab7:
                 )
                 
                 if not posts:
-                    st.error("❌ 未能抓取到帖子")
+                    st.warning("⚠️ 未能抓取到帖子 (Failed to fetch posts)")
+                    st.error("Reddit 对云端服务器 IP (Streamlit Cloud) 有严格的封锁机制。")
+                    st.info("💡 **解决方案**: 请在本地电脑运行此程序 (Localhost)，通常可以正常访问。\n\n"
+                            "**To run locally:** `streamlit run app.py`")
+                    st.caption("技术细节: Reddit API 返回 403 Forbidden 或 429 Too Many Requests，这是因为数据中心 IP 被列入了黑名单。")
                     st.warning("请检查网络连接，或稍后再试。")
                 else:
                     # Analyze sentiments
