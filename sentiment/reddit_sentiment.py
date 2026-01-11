@@ -85,11 +85,16 @@ class RedditSentimentAnalyzer:
         
         # List of domains to try (Main + Mirrors)
         # Prioritize .json endpoints directly
+        # List of domains to try (Main + Mirrors)
+        # 1. Official JSON (often blocked in Cloud)
+        # 2. Libreddit Mirrors (Privacy front-ends, often work better)
+        # 3. RSS Feed (XML) - Most robust fallback
         domains = [
-            'https://www.reddit.com',
-            'https://old.reddit.com',
-            # RSS Feeds (fallback)
             'https://www.reddit.com/r/{subreddit}/{filter_type}.json', 
+            'https://l.opnxng.com',      # Libreddit Mirror 1
+            'https://rx.dd84.de',        # Libreddit Mirror 2
+            'https://libreddit.bus-hit.me', # Libreddit Mirror 3
+            'rss_fallback',              # Special flag for RSS parsing
         ]
         
         posts = []
@@ -99,10 +104,16 @@ class RedditSentimentAnalyzer:
                 print(f"[DEBUG] Trying domain: {domain}")
                 
                 # Adjust URL format based on domain
-                if 'reddit.com' in domain:
-                    url = f"{domain}/r/{subreddit}/{filter_type}.json?limit={count}"
+                # Adjust URL format based on domain
+                if domain == 'rss_fallback':
+                    # Skip here, handled in except/else block or special check
+                    continue
+
+                if '.json' in domain:
+                    # It's already a full URL template
+                    url = domain.format(subreddit=subreddit, filter_type=filter_type) + f"?limit={count}"
                 else:
-                    # Libreddit instances usually follow same path
+                    # It's a base domain (Mirror)
                     url = f"{domain}/r/{subreddit}/{filter_type}.json?limit={count}"
                 
                 if filter_type == 'top' and time_range:
@@ -119,28 +130,56 @@ class RedditSentimentAnalyzer:
                     data = response.json()
                     
                     # Handle different JSON structures if needed
-                    children = data.get('data', {}).get('children', [])
-                    
-                    if not children:
-                        print(f"[DEBUG] No posts found on {domain}")
-                        continue
-                        
-                    print(f"[SUCCESS] Fetched {len(children)} posts from {domain}")
+                    children = data['data']['children']
                     
                     for child in children:
-                        post_data = child.get('data', {})
-                        if post_data:
-                            posts.append(RedditPost(post_data))
-                    
-                    if posts:
-                        break
+                        post_data = child['data']
+                        posts.append(RedditPost(post_data))
+                        
+                    print(f"✅ Successfully scraped {len(posts)} posts from {domain}")
+                    return posts
                 else:
-                    print(f"[DEBUG] Failed on {domain}: {response.status_code}")
+                    print(f"❌ Failed to fetch from {domain}: Status {response.status_code}")
                     
             except Exception as e:
-                print(f"[DEBUG] Error on {domain}: {e}")
+                print(f"Error fetching from {domain}: {e}")
                 continue
         
+        # --- Final Fallback: RSS Feed Parsing ---
+        # If all JSON endpoints fail (429/403), try the raw RSS feed which is often unblocked
+        try:
+            print("[DEBUG] All JSON mirrors failed. Trying RSS Fallback...")
+            rss_url = f"https://www.reddit.com/r/{subreddit}/{filter_type}/.rss"
+            # RSS needs a different User-Agent usually, or just raw requests
+            rss_response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+            
+            if rss_response.status_code == 200:
+                import feedparser
+                feed = feedparser.parse(rss_response.content)
+                print(f"✅ RSS Fallback successful: Found {len(feed.entries)} entries")
+                
+                for entry in feed.entries:
+                    # Map RSS entry to RedditPost format
+                    # RSS 'content' usually contains HTML, we need to be careful
+                    # But for sentiment, title is most important
+                    
+                    # Extract roughly equivalent fields
+                    post_data = {
+                        'id': entry.get('id', ''),
+                        'title': entry.get('title', ''),
+                        'selftext': entry.get('summary', ''), # RSS summary is the body
+                        'ups': 0, # RSS doesn't show upvotes
+                        'num_comments': 0, 
+                        'created_utc': time.mktime(entry.published_parsed) if hasattr(entry, 'published_parsed') else time.time(),
+                        'permalink': entry.get('link', '').replace('https://www.reddit.com', '')
+                    }
+                    posts.append(RedditPost(post_data))
+                return posts
+            else:
+                print(f"❌ RSS Fallback failed: {rss_response.status_code}")
+        except Exception as e:
+            print(f"Error in RSS Fallback: {e}")
+
         # Fallback: Try CURL if all python requests failed
         if not posts:
             print("[DEBUG] All requests failed, trying CURL fallback...")
