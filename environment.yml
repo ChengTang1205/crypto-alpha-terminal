@@ -1,0 +1,37 @@
+name: crypto-terminal
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - ta-lib
+  - pip
+  - pip:
+    - streamlit
+    - pandas
+    - requests
+    - plotly
+    - yfinance
+    - streamlit-echarts
+    - openai
+    - langchain
+    - langchain-openai
+    - langgraph
+    - tabulate
+    - mplfinance
+    - vaderSentiment>=3.3.2
+    - selenium
+    - webdriver-manager
+    - twikit
+    - transformers
+    - torch
+    - python-dotenv
+    - termcolor
+    - lxml
+    - emoji==0.6.0
+    - feedparser
+    - ccxt
+    - websockets
+    - scikit-learn
+    - PyGithub
+    - beautifulsoup4
