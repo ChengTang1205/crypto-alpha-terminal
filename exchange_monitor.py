@@ -11,30 +11,24 @@ class CEXReserveMonitor:
         # 1. 修正交易所列表，Huobi 改为 'htx'
         self.target_exchanges = [
             'binance-cex', 
-            'coinbase',
             'okx', 
             'bybit', 
-            'kraken',
             'bitfinex',
             'kucoin',
             'deribit', 
-            'gate',
-            'crypto.com',
-            'bitmex',
+            'gate',      # Verified: $6.7B
+            'bitmex',    # Verified: $151M
             'htx' 
         ]
         
         self.name_mapping = {
             'binance-cex': 'Binance',
-            'coinbase': 'Coinbase',
             'okx': 'OKX',
             'bybit': 'Bybit',
-            'kraken': 'Kraken',
             'bitfinex': 'Bitfinex',
             'kucoin': 'KuCoin',
             'deribit': 'Deribit',
             'gate': 'Gate.io',
-            'crypto.com': 'Crypto.com',
             'bitmex': 'BitMEX',
             'htx': 'HTX (Huobi)'
         }
