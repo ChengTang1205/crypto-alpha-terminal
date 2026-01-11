@@ -62,12 +62,12 @@ class RedditSentimentAnalyzer:
         self.analyzer = SentimentIntensityAnalyzer()
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            # Reddit requires a specific User-Agent format: <platform>:<app ID>:<version string> (by /u/<reddit username>)
+            # Using a custom one often works better than faking Chrome in Cloud environments
+            'User-Agent': 'python:crypto-alpha-terminal:v1.0.0 (by /u/CryptoTerminalBot)',
+            'Accept': 'application/json',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
+            'Connection': 'keep-alive'
         })
     
     def scrape_reddit_posts(
@@ -84,13 +84,12 @@ class RedditSentimentAnalyzer:
         import random
         
         # List of domains to try (Main + Mirrors)
-        # Libreddit/Teddit instances are often more permissive
+        # Prioritize .json endpoints directly
         domains = [
-            'https://old.reddit.com',
             'https://www.reddit.com',
-            'https://l.opnxng.com',      # Libreddit mirror
-            'https://rx.dd84.de',        # Libreddit mirror
-            'https://reddit.invak.id',   # Libreddit mirror
+            'https://old.reddit.com',
+            # RSS Feeds (fallback)
+            'https://www.reddit.com/r/{subreddit}/{filter_type}.json', 
         ]
         
         posts = []
