@@ -213,6 +213,13 @@ class AIStrategy:
         Train the Random Forest model.
         """
         # Split Data
+        # Clean Data (Fix for Streamlit Cloud: "Input X contains infinity")
+        # Replace infinity with nan
+        df[self.feature_cols] = df[self.feature_cols].replace([np.inf, -np.inf], np.nan)
+        # Drop rows with any NaNs in features
+        df.dropna(subset=self.feature_cols, inplace=True)
+
+        # Split Data (Re-calculate split after dropping NaNs)
         split_idx = int(len(df) * split_ratio)
         train_df = df.iloc[:split_idx]
         test_df = df.iloc[split_idx:]
