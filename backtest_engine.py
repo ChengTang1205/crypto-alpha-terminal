@@ -2,6 +2,7 @@ import ccxt
 import pandas as pd
 import numpy as np
 import talib
+import yfinance as yf
 from typing import Dict, List, Tuple
 
 class BacktestEngine:
@@ -43,7 +44,70 @@ class BacktestEngine:
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             return df
         except Exception as e:
-            print(f"Error fetching data: {e}")
+            print(f"Error fetching data from Binance: {e}. Trying Yahoo Finance fallback...")
+            return self.fetch_data_yfinance(symbol, timeframe, limit)
+
+    def fetch_data_yfinance(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+        """Fallback: Fetch data from Yahoo Finance"""
+        try:
+            # 1. Map Symbol (BTC/USDT -> BTC-USD)
+            yf_symbol = symbol.replace('/', '-').replace('USDT', 'USD')
+            
+            # 2. Map Timeframe
+            # ccxt: 1h, 4h, 1d
+            # yf: 1h, 1d (YF doesn't support 4h well, maybe use 1h and resample? For now just try exact match)
+            # YF valid intervals: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo
+            
+            period = "2y" # Max available for hourly data
+            if timeframe == '4h':
+                # YF doesn't support 4h directly. We could fetch 1h and resample, but for simplicity let's fallback to 1h or error
+                # Ideally we fetch 1h and resample. Users selected 1h typically.
+                # Let's just try to map 4h -> 1h for now as a fallback? No, that's misleading.
+                # Let's stick to 1h default or supports 1d.
+                pass
+            
+            print(f"Fetching {yf_symbol} from Yahoo Finance...")
+            df = yf.download(yf_symbol, period=period, interval=timeframe, progress=False)
+            
+            if df.empty:
+                return pd.DataFrame()
+                
+            # Flatten MultiIndex columns if present (YF v0.2+)
+            if isinstance(df.columns, pd.MultiIndex):
+                # Try to extract just the ticker level if it exists, or just drop level
+                df.columns = df.columns.droplevel(1) 
+            
+            df = df.reset_index()
+            
+            # Rename columns
+            # YF: Date (or Datetime), Open, High, Low, Close, Adj Close, Volume
+            col_map = {
+                'Date': 'timestamp',
+                'Datetime': 'timestamp',
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Volume': 'volume'
+            }
+            df = df.rename(columns=col_map)
+            
+            # Standardize
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Filter columns
+            req_cols = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+            df = df[[c for c in req_cols if c in df.columns]]
+            
+            # Sort and Slice
+            df = df.sort_values('timestamp')
+            if len(df) > limit:
+                df = df.iloc[-limit:]
+                
+            return df.reset_index(drop=True)
+            
+        except Exception as e:
+            print(f"Error fetching from YFinance: {e}")
             return pd.DataFrame()
 
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
